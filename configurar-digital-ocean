@@ -1,5 +1,20 @@
 #!/bin/bash
 
+if [ $# -lt 2 ]; then
+  cat <<EOF
+Este script necesita dos o tres argumentos para funcionar:
+./configurar-digital-ocean <nombre-repositorio> <puerto> [<nombre-servicio>]
+
+EJEMPLOS:
+* Para crear un servicio con el mismo nombre del repositorio en nombre-repo.proyectos.sagradoalcal.edu.ar, en el puerto 3000:
+./configurar-digital-ocean nombre-repo 3000
+
+* Para crearlo con otro nombre, en el puerto 3001:
+./configurar-digital-ocean nombre-repo 3001 nombre-servicio
+EOF
+  exit
+fi
+
 PROYECTO=$1
 PUERTO=$2
 SITIO=${3:-$PROYECTO}
