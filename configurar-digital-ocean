@@ -1,0 +1,63 @@
+#!/bin/bash
+
+PROYECTO=$1
+PUERTO=$2
+SITIO=${3:-$PROYECTO}
+URL_BASE=proyectos.sagradoalcal.edu.ar
+
+# Clonamos el repositorio de GitLab
+git clone http://gitlab.sagradoalcal.edu.ar/7-proyectos/$PROYECTO.git
+cd $PROYECTO
+
+# Le agregamos el código necesario para que después del deploy corra scripts de Rails
+mkdir -p .escualo/install
+echo "bundle exec rake assets:precompile db:migrate" > .escualo/install/after
+git add .escualo
+git commit -m "Scripts necesarios para el deploy"
+
+# Agregamos al README del repo las instrucciones para hacer deploy
+cat >>README.md <<EOL
+### Cómo subir al servidor (o, en lenguaje técnico, "hacer deploy")
+
+```bash
+# Por única vez, se agrega el repositorio remoto:
+git remote add servidor ssh://root@${URL_BASE}:22/var/repo/${SITIO}.git
+
+# Se hace push como siempre, pero a servidor en vez de origin:
+git push -f servidor master
+```
+EOL
+git add README.md
+git commit -m "Instrucciones para hacer deploy"
+
+# Subimos los cambios
+git push origin master
+
+# Creamos el artefacto en el servidor
+escualo artifact create site $SITIO --hostname $URL_BASE --username root
+
+# Configuramos el nginx
+cat >/tmp/$SITIO.conf <<EOL
+server {
+    listen 80;
+    server_name ${SITIO}.${URL_BASE};
+    root /var/www/${SITIO}/public;
+
+    location / {
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   Host      $host;
+        proxy_pass         http://127.0.0.1:${PUERTO};
+    }
+
+    location ^~ /assets/ {
+        gzip_static on;
+        expires max;
+        add_header Cache-Control public;
+    }
+}
+EOL
+scp /tmp/$SITIO.conf root@$URL_BASE:/etc/nginx/sites-enabled
+
+ssh root@$URL_BASE <<'ENDSSH'
+service restart nginx
+ENDSSH
