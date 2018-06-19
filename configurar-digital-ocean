@@ -42,6 +42,10 @@ agregar-script-deploy() {
 
   echo "Agregamos al README del repo las instrucciones para hacer deploy"
   cat > README.md <<EOF
+### Versión online
+
+Para ver la versión publicada de este proyecto, acceder a http://${SITIO}.${URL_BASE}.
+
 ### Cómo subir al servidor (o, en lenguaje técnico, "hacer deploy")
 
 \`\`\`bash
