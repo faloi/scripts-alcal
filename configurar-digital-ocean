@@ -5,39 +5,53 @@ PUERTO=$2
 SITIO=${3:-$PROYECTO}
 URL_BASE=proyectos.sagradoalcal.edu.ar
 
-# Clonamos el repositorio de GitLab
-git clone http://gitlab.sagradoalcal.edu.ar/7-proyectos/$PROYECTO.git
-cd $PROYECTO
+paso() {
+  TEXTO=$1
+  VERDE='\033[0;32m'
+  NC='\033[0m' # No Color
+  echo -e "${VERDE}${TEXTO}${NC}"
+}
 
-# Le agregamos el código necesario para que después del deploy corra scripts de Rails
-mkdir -p .escualo/install
-echo "bundle exec rake assets:precompile db:migrate" > .escualo/install/after
-git add .escualo
-git commit -m "Scripts necesarios para el deploy"
+clonar-repositorio() {
+  paso "Clonamos el repositorio de GitLab"
+  git clone http://gitlab.sagradoalcal.edu.ar/7-proyectos/$PROYECTO.git
+}
 
-# Agregamos al README del repo las instrucciones para hacer deploy
-cat >>README.md <<EOL
+agregar-script-deploy() {
+  cd $PROYECTO
+  paso "Le agregamos el código necesario para que después del deploy corra scripts de Rails"
+  mkdir -p .escualo/install
+  echo "bundle exec rake assets:precompile db:migrate" > .escualo/install/after
+  git add .escualo
+  git commit -m "Scripts necesarios para el deploy"
+
+  echo "Agregamos al README del repo las instrucciones para hacer deploy"
+  cat > README.md <<EOF
 ### Cómo subir al servidor (o, en lenguaje técnico, "hacer deploy")
 
-```bash
+\`\`\`bash
 # Por única vez, se agrega el repositorio remoto:
 git remote add servidor ssh://root@${URL_BASE}:22/var/repo/${SITIO}.git
 
 # Se hace push como siempre, pero a servidor en vez de origin:
 git push -f servidor master
-```
-EOL
-git add README.md
-git commit -m "Instrucciones para hacer deploy"
+\`\`\`
+EOF
 
-# Subimos los cambios
-git push origin master
+  git add README.md
+  git commit -m "Instrucciones para hacer deploy"
 
-# Creamos el artefacto en el servidor
-escualo artifact create site $SITIO --hostname $URL_BASE --username root
+  git push origin master
+}
 
-# Configuramos el nginx
-cat >/tmp/$SITIO.conf <<EOL
+crear-artefacto() {
+  paso "Creamos el artefacto en el servidor"
+  escualo artifact create site $SITIO --hostname $URL_BASE --username root
+}
+
+configurar-nginx() {
+  paso "Configuramos el nginx"
+  cat > /tmp/$SITIO.conf <<EOF
 server {
     listen 80;
     server_name ${SITIO}.${URL_BASE};
@@ -55,9 +69,15 @@ server {
         add_header Cache-Control public;
     }
 }
-EOL
-scp /tmp/$SITIO.conf root@$URL_BASE:/etc/nginx/sites-enabled
+EOF
+  scp /tmp/$SITIO.conf root@$URL_BASE:/etc/nginx/sites-enabled
 
-ssh root@$URL_BASE <<'ENDSSH'
-service restart nginx
+  ssh root@$URL_BASE <<'ENDSSH'
+service nginx restart
 ENDSSH
+}
+
+clonar-repositorio
+agregar-script-deploy
+crear-artefacto
+configurar-nginx
